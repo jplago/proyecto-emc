@@ -1,0 +1,170 @@
+En este notebook:
+- Se analiza el número promedio de clusters obtenidos con AP clustering al variar el parámetro n.
+- Se crean las matrices de conectividad.
+- Se guarda la dirección de lectura de las matrices.
+
+```{r}
+## Carga de librerías
+
+library('apcluster')
+library('stringr')
+```
+
+
+```{r}
+## Carga de datos
+
+# Número de regiones de la parcelación
+N = 190
+
+# Se cargan datos fenotípicos
+pheno_data_train_KKI = read.csv('data/pheno_data_KKI_train.csv', stringsAsFactors = F)
+pheno_data_train_Peking = read.csv('data/pheno_data_Peking_train.csv', stringsAsFactors = F)
+pheno_data_test_KKI = read.csv('data/pheno_data_KKI_test.csv', stringsAsFactors = F)
+pheno_data_test_Peking = read.csv('data/pheno_data_Peking_test.csv', stringsAsFactors = F)
+
+# Función que carga la serie de tiempo de una fmri 
+read_fmri = function(ruta){
+  x = t(read.table(ruta)[-1,-c(1,2)])
+  class(x) = 'numeric'
+  col_names = str_c('T', as.character(1:dim(x)[2]))
+  colnames(x) = col_names
+  rownames(x) = c()
+  return(x)
+}
+```
+
+
+```{r}
+## Se definen funciones de similaridad y preferencias iniciales
+
+# Función de similaridad
+# sigma es el vector con el desvío estandar de las columnas de la matriz. 
+Sim = function(x){
+sigma = apply(x,2,sd)
+S = matrix(NA, nrow = N, ncol = N)
+for (i in 1:N){
+  for (j in 1:N){
+    S[i,j] = - sqrt(sum((x[i,] - x[j,])**2 /sigma**2))
+  }
+}
+return(S)
+}
+
+# Preferencias iniciales de acuerdo a Rajpoot et al
+prefs_raj = function(S, n){
+  aux = apply(S, 1, function(x) mean(sort(x, decreasing = T)[1:n]))
+  return(aux)
+}
+```
+
+
+```{r}
+## Se analiza el promedio del número de clusters obtenidos en función de preferencias iniciales dadas por Rajpoot et al.
+
+number_of_clusters = function(rutas_fmris, pref_fn, ns){
+  df = data.frame(matrix(vector(), nrow=length(rutas_fmris), ncol=length(ns)))
+  colnames(df) = ns
+  for (k in 1:length(rutas_fmris)){
+    print(k)
+    x = read_fmri(rutas_fmris[k])
+    S = Sim(x)
+    
+    ps = lapply(ns, function(n) pref_fn(S, n))
+    
+    h=0
+    for (p in ps){
+        h=h+1
+        apres = apcluster(s=S, p=p, lam=0.5, maxits=1500, convits=100)
+        df[k,h] = length(apres@exemplars)
+    }
+  }
+  return(df)
+}
+
+ns = seq(10,60,10)
+
+n_clusters_Peking_raj = number_of_clusters(pheno_data_train_Peking$Ruta, prefs_raj, ns)
+n_clusters_KKI_raj = number_of_clusters(pheno_data_train_KKI$Ruta, prefs_raj, ns)
+
+#write.csv(n_clusters_KKI_raj, 'n_clusters_KKI_raj.csv')
+#write.csv(n_clusters_Peking_raj, 'n_clusters_Peking_raj.csv')
+
+boxplot(n_clusters_Peking_raj, xlab = 'n', ylab = 'número de clusters', main='Peking')
+boxplot(n_clusters_KKI_raj, xlab = 'n', ylab = 'número de clusters', main='KKI')
+```
+
+
+```{r}
+## Cálculo de matrices de conectividad
+
+I = 1500
+C = 100
+
+matriz_uno_cero = function(apres){
+  M = matrix(NA, 190, 190)
+  for (i in 1:190) {
+    for (j in 1:190) {
+      if (labels(apres, type='exemplars')[i] == labels(apres, type='exemplars')[j]){
+        M[i,j] = 1}
+      else {
+        M[i,j] = 0}
+    }
+  }
+  return(M)
+}
+
+matriz_conectividad_pref_fn = function(S, pref_fn, ns){
+  M = matrix(0, N, N)
+  ps = lapply(ns, function(x) pref_fn(S, x))
+  for (p in ps){
+    apres = apcluster(s=S, lam = 0.5, maxits = I, convits = C, details=TRUE, p = p)
+    Mp = matriz_uno_cero(apres)
+    M = M + Mp
+  }
+  M = M / length(ps)
+  return(M)
+}
+
+## Cálculo de matrices de conectividad para todos los sujetos: se calcula haciendo el promedio de las entradas M[i,j] para las matrices M obtenidas a partir de las distintas clusterizaciones. 
+
+# Valores de n 
+ns = seq(10,60,10)
+
+# Rutas de todas las fmris
+rutas = c(pheno_data_train_Peking$Ruta, pheno_data_train_KKI$Ruta, pheno_data_test_Peking$Ruta, pheno_data_test_KKI$Ruta)
+
+for (i in 1:length(rutas)){
+  print(i)
+  ruta = rutas[i]
+  x = read_fmri(ruta)
+  S = Sim(x)
+  
+  M_raj = matriz_conectividad_pref_fn(S, prefs_raj, ns)
+  ruta_raj = ruta
+  str_sub(ruta_raj, -3, -1) = '_FC_raj.txt'
+  write.table(M_raj, ruta_raj, col.names = F, row.names = F)
+}
+```
+
+
+```{r}
+## Se agrega vector con las rutas de las matrices de conectividad a pheno_data_train y pheno_data_test.
+
+ajuste_ruta = function(x,y){
+  aux = x
+  str_sub(aux, -3, -1) =str_c('_',y,'.txt')
+  return(aux)
+}
+
+pheno_data_train_KKI[, 'Ruta_FC_raj'] = ajuste_ruta(pheno_data_train_KKI[,'Ruta'], 'FC_raj')
+pheno_data_test_KKI[, 'Ruta_FC_raj'] = ajuste_ruta(pheno_data_test_KKI[,'Ruta'], 'FC_raj')
+
+pheno_data_train_Peking[, 'Ruta_FC_raj'] = ajuste_ruta(pheno_data_train_Peking[,'Ruta'], 'FC_raj')
+pheno_data_test_Peking[, 'Ruta_FC_raj'] = ajuste_ruta(pheno_data_test_Peking[,'Ruta'], 'FC_raj')
+
+write.csv(pheno_data_train_KKI, 'data/pheno_data_KKI_train.csv', row.names = F)
+write.csv(pheno_data_test_KKI, 'data/pheno_data_KKI_test.csv', row.names = F)
+write.csv(pheno_data_train_Peking, 'data/pheno_data_Peking_train.csv', row.names = F)
+write.csv(pheno_data_test_Peking, 'data/pheno_data_Peking_test.csv', row.names = F)
+```
