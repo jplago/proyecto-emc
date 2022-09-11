@@ -10,4 +10,4 @@ Estos dos notebooks fueron desarrollados en el lenguaje R.
 
 En el notebook C - SMOTE-EN-SVM Pipeline.ipynb se define el pipeline que constituye el modelo de clasificación, se optimizan hiperparámetros y se dan métricas en conjuntos de entrenamiento y test. Puede correrse con los datos incluidos en este repo.
 
-Este notebook fue desarrollado en Python por conveniencia con el uso de la libreria *imblearn* para el manejo de SMOTE en el caso de uso requerido. 
+El último notebook fue desarrollado en Python por conveniencia con el uso de la libreria *imblearn* para el manejo de SMOTE en el caso de uso requerido. 
