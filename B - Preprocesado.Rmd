@@ -22,6 +22,13 @@ df_test_Peking = read.csv('data/pheno_data_Peking_test.csv', stringsAsFactors = 
 
 
 ```{r}
+# Ejemplo de datos fenotípicos
+
+df_train_Peking
+```
+
+
+```{r}
 ## Función que genera un único dataframe con los datos de las matrices de conectividad de todos los sujetos convertidas a vectores
 
 N = 190
@@ -97,3 +104,13 @@ full_preproc(df_train_KKI, df_test_KKI, df_train_KKI$Ruta_FC_raj, df_test_KKI$Ru
 full_preproc(df_train_Peking, df_test_Peking, df_train_Peking$Ruta_FC_raj, df_test_Peking$Ruta_FC_raj, pheno_columns, 'data/data_raj_train_Peking_preproc.csv', 'data/data_raj_test_Peking_preproc.csv')
 ```
 
+```{r}
+# Dimensiones de los datos
+
+data_train_Peking = read.csv('data/data_raj_train_Peking_preproc.csv')
+data_train_KKI = read.csv('data/data_raj_train_KKI_preproc.csv')
+
+cat('Dimensiones de los datos preprocesados\n')
+cat('Peking:', dim(data_train_Peking), '\n')
+cat('KKI:', dim(data_train_KKI))
+```
